@@ -4,7 +4,7 @@
   "description": "Consignment Slip Editor & Exporter packaged with Capacitor for Android",
   "private": true,
   "scripts": {
-    "build": "node -e \"const fs = require('fs'), path = require('path'); fs.mkdirSync('www', { recursive: true }); fs.copyFileSync('index.html', path.join('www', 'index.html'));\"",
+    "build": "node -e \"const fs = require('fs'), path = require('path'); fs.mkdirSync('www', { recursive: true }); if (fs.existsSync('index.html')) { fs.copyFileSync('index.html', path.join('www', 'index.html')); } else if (!fs.existsSync(path.join('www', 'index.html'))) { throw new Error('Missing index.html in root or www/'); }\"",
     "cap:add:android": "npm run build && cap add android",
     "cap:sync": "npm run build && cap sync android",
     "cap:open:android": "npm run build && cap open android"
