@@ -129,8 +129,8 @@
         <img id="modal-preview-img" src="" alt="Consignment Slip PNG" class="max-w-full h-auto border border-slate-300 shadow-sm bg-white" />
       </div>
 
-      <p class="text-xs text-slate-600 text-center">
-        Press and hold the image above and tap <strong>Download image</strong>, or use <strong>Share / Save to Device</strong> below.
+      <p id="modal-status-note" class="text-xs text-slate-600 text-center">
+        Tap <strong>Share / Save to Device</strong> below to save or share the PNG file.
       </p>
 
       <div class="flex gap-2.5">
@@ -527,7 +527,7 @@
       toastTimeout = setTimeout(() => {
         toastBox.classList.add('hidden');
         toastBox.classList.remove('flex');
-      }, 3000);
+      }, 3500);
     }
 
     const inputs = document.querySelectorAll('input[data-field]');
@@ -675,11 +675,9 @@
       const ctx = canvas.getContext('2d');
       ctx.scale(scale, scale);
 
-      // Solid white background
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, logicalW + pad * 2, logicalH + pad * 2);
 
-      // Double outer border frame
       ctx.strokeStyle = '#000000';
       ctx.lineWidth = 1.8;
       ctx.strokeRect(pad, pad, logicalW, logicalH);
@@ -691,7 +689,6 @@
       const innerH = logicalH - inset * 2;
       ctx.strokeRect(innerX, innerY, innerW, innerH);
 
-      // Column coordinates
       const leftX = innerX + 9;
       const dividerX = innerX + Math.round(innerW * 0.508);
       const rightTextX = dividerX + 9;
@@ -718,7 +715,6 @@
         ctx.restore();
       }
 
-      // ================= LEFT COLUMN =================
       drawLabelValue(leftX, innerY + 10, 'CN : ', data.cn, false, true);
 
       const shipperStartY = innerY + 45;
@@ -753,7 +749,6 @@
       ctx.fillText(data.consigneeAddr3 || '', leftX, addrStartY + 42);
       drawLabelValue(leftX, addrStartY + 63, 'CITY : ', data.city, false, false);
 
-      // ================= RIGHT COLUMN & CENTER PIPE '|' =================
       const r1Y = innerY + 8;
       drawPipe(r1Y);
       const orgnW = drawLabelValue(rightTextX, r1Y, 'ORGN : ', data.orgn, false, true);
@@ -798,38 +793,29 @@
       return canvas;
     }
 
-    // Modal state & controls for Android WebView fallback
+    // Export & Capacitor Filesystem / Share state
     let latestExportFile = null;
-    let latestExportDataUrl = '';
+    let latestExportBlobUrl = '';
     let latestExportFilename = '';
+    let latestSavedUri = '';
 
     const exportModal = document.getElementById('mobile-export-modal');
     const modalPreviewImg = document.getElementById('modal-preview-img');
     const modalFilename = document.getElementById('modal-filename');
+    const modalStatusNote = document.getElementById('modal-status-note');
 
     function closeExportModal() {
       exportModal.classList.add('hidden');
       exportModal.classList.remove('flex');
+      if (latestExportBlobUrl) {
+        URL.revokeObjectURL(latestExportBlobUrl);
+        latestExportBlobUrl = '';
+      }
+      modalPreviewImg.removeAttribute('src');
     }
 
     document.getElementById('closeModalBtn').addEventListener('click', closeExportModal);
     document.getElementById('modalDoneBtn').addEventListener('click', closeExportModal);
-
-    document.getElementById('modalShareBtn').addEventListener('click', async () => {
-      if (latestExportFile && navigator.canShare && navigator.canShare({ files: [latestExportFile] })) {
-        try {
-          await navigator.share({
-            files: [latestExportFile],
-            title: latestExportFilename
-          });
-          showToast('Opened Android Share / Save sheet');
-          return;
-        } catch (err) {
-          if (err && err.name === 'AbortError') return;
-        }
-      }
-      showToast('Press and hold the image to save to your phone');
-    });
 
     function canvasToBlobAsync(canvas) {
       return new Promise((resolve, reject) => {
@@ -840,12 +826,93 @@
       });
     }
 
-    function isAndroidOrCapacitor() {
-      const ua = navigator.userAgent || '';
-      const isCapacitor = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-      const isAndroid = /Android/i.test(ua);
-      return isCapacitor || isAndroid;
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const res = String(reader.result || '');
+          const commaIdx = res.indexOf(',');
+          resolve(commaIdx >= 0 ? res.slice(commaIdx + 1) : res);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
     }
+
+    async function saveWithCapacitorFilesystem(filename, base64Data) {
+      const capFilesystem = window.Capacitor?.Plugins?.Filesystem;
+      if (!capFilesystem || typeof capFilesystem.writeFile !== 'function') {
+        return null;
+      }
+
+      const directories = ['DOCUMENTS', 'EXTERNAL', 'CACHE'];
+      for (const directory of directories) {
+        try {
+          const result = await capFilesystem.writeFile({
+            path: filename,
+            data: base64Data,
+            directory,
+            recursive: true
+          });
+          return {
+            directory,
+            uri: result && result.uri ? result.uri : ''
+          };
+        } catch (err) {
+          console.warn(`Filesystem write failed for ${directory}:`, err);
+        }
+      }
+      return null;
+    }
+
+    async function shareViaCapacitorOrWeb(file, filename, savedUri) {
+      const capShare = window.Capacitor?.Plugins?.Share;
+      if (capShare && typeof capShare.share === 'function' && savedUri) {
+        try {
+          await capShare.share({
+            title: filename,
+            text: `Consignment Slip ${filename}`,
+            url: savedUri,
+            dialogTitle: 'Save or Share Slip PNG'
+          });
+          showToast(`Opened share/save sheet for ${filename}`);
+          return true;
+        } catch (capErr) {
+          if (capErr && String(capErr.message || '').toLowerCase().includes('cancel')) {
+            return true;
+          }
+          console.warn('Capacitor Share fallback:', capErr);
+        }
+      }
+
+      if (navigator.share) {
+        try {
+          if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: filename
+            });
+            showToast(`Opened share/save sheet for ${filename}`);
+            return true;
+          }
+        } catch (webShareErr) {
+          if (webShareErr && webShareErr.name === 'AbortError') {
+            return true;
+          }
+          console.warn('Web Share fallback:', webShareErr);
+        }
+      }
+
+      return false;
+    }
+
+    document.getElementById('modalShareBtn').addEventListener('click', async () => {
+      if (!latestExportFile) return;
+      const opened = await shareViaCapacitorOrWeb(latestExportFile, latestExportFilename, latestSavedUri);
+      if (!opened) {
+        showToast('Saved to app storage; use your device Files app to view it');
+      }
+    });
 
     // High-Resolution PNG Slip Download & Android Save/Share handler
     document.getElementById('downloadPngBtn').addEventListener('click', async () => {
@@ -864,68 +931,57 @@
         const filename = `CN_${safeCn}_slip.png`;
 
         const canvas = renderSlipToCanvas(slipData);
-        const dataUrl = canvas.toDataURL('image/png');
         const blob = await canvasToBlobAsync(canvas);
         const file = new File([blob], filename, { type: 'image/png' });
 
-        latestExportFile = file;
-        latestExportDataUrl = dataUrl;
-        latestExportFilename = filename;
+        if (latestExportBlobUrl) {
+          URL.revokeObjectURL(latestExportBlobUrl);
+        }
+        const blobUrl = URL.createObjectURL(blob);
 
-        // 1. If Capacitor Filesystem plugin is installed, save directly to Documents
-        const capFilesystem = window.Capacitor?.Plugins?.Filesystem;
-        if (capFilesystem) {
-          try {
-            const base64Data = dataUrl.split(',')[1];
-            await capFilesystem.writeFile({
-              path: filename,
-              data: base64Data,
-              directory: 'DOCUMENTS'
-            });
-            showToast(`Saved ${filename} to Documents`);
-            return;
-          } catch (fsErr) {
-            console.warn('Capacitor Filesystem fallback:', fsErr);
-          }
+        latestExportFile = file;
+        latestExportBlobUrl = blobUrl;
+        latestExportFilename = filename;
+        latestSavedUri = '';
+
+        // 1. Save directly using Capacitor Filesystem if available
+        const base64Data = await blobToBase64(blob);
+        const savedInfo = await saveWithCapacitorFilesystem(filename, base64Data);
+        if (savedInfo) {
+          latestSavedUri = savedInfo.uri;
+          showToast(`Saved ${filename} to ${savedInfo.directory}`);
+          const shared = await shareViaCapacitorOrWeb(file, filename, latestSavedUri);
+          if (shared) return;
         }
 
-        // 2. Android WebView / Mobile Browser
-        if (isAndroidOrCapacitor()) {
-          if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-              await navigator.share({
-                files: [file],
-                title: filename
-              });
-              showToast(`Ready to save or share ${filename}`);
-              return;
-            } catch (shareErr) {
-              if (shareErr && shareErr.name === 'AbortError') {
-                return;
-              }
-              console.warn('Web Share fallback to modal:', shareErr);
-            }
-          }
+        // 2. Try native share if Filesystem wasn't present
+        if (!savedInfo) {
+          const shared = await shareViaCapacitorOrWeb(file, filename, '');
+          if (shared) return;
+        }
 
-          modalPreviewImg.src = dataUrl;
-          modalFilename.textContent = filename;
-          exportModal.classList.remove('hidden');
-          exportModal.classList.add('flex');
-          showToast('Tap "Share / Save to Device" or hold image to save');
+        // 3. Desktop browser download fallback
+        const isMobileUa = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+        if (!isMobileUa) {
+          const link = document.createElement('a');
+          link.download = filename;
+          link.href = blobUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+          showToast(`Downloaded ${filename}`);
           return;
         }
 
-        // 3. Desktop browsers: standard Blob URL download
-        const blobUrl = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = filename;
-        link.href = blobUrl;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
-
-        showToast(`Downloaded ${filename}`);
+        // 4. Preview modal fallback
+        modalPreviewImg.src = blobUrl;
+        modalFilename.textContent = filename;
+        modalStatusNote.innerHTML = savedInfo
+          ? `Saved to <strong>${savedInfo.directory}</strong>. Tap <strong>Share / Save to Device</strong> below to export or share.`
+          : 'Tap <strong>Share / Save to Device</strong> below to save or share the PNG file.';
+        exportModal.classList.remove('hidden');
+        exportModal.classList.add('flex');
       } catch (err) {
         console.error('PNG Export Error:', err);
         showToast('PNG export failed. Please try Print / Save PDF.', true);
