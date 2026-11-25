@@ -451,10 +451,7 @@
                     <span class="ml-[2px]">COD : <span id="prev-cod" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">0</span></span>
                   </div>
 
-                  <!-- Row 13: Blank pipe row above SHS -->
-                  <div class="flex items-center leading-[16px]">
-                    <span class="pipe-glyph">|</span>
-                  </div>
+                  
 
                   <!-- Row 14: SHS -->
                   <div class="flex items-center leading-[21px]">
@@ -483,7 +480,7 @@
     // Initial default state matching the original uploaded consignment slip
     const defaultValues = {
       cn: "10600138019",
-      orgn: "RJP",
+      orgn: "JHG",
       dstn: "ISB",
       date: "28/01/2025",
       customer: "880870",
@@ -665,7 +662,7 @@
     function renderSlipToCanvas(data) {
       const scale = 3;
       const logicalW = 720;
-      const logicalH = 360;
+      const logicalH = 315;
       const pad = 8;
 
       const canvas = document.createElement('canvas');
@@ -776,17 +773,21 @@
         drawLabelValue(rightTextX, y, row.prefix, row.value, row.boldPrefix, false);
       });
 
+      // Row 11: Compact blank pipe row above COD
       const codBlankY = midStartY + rightRows.length * rightLineH;
       drawPipe(codBlankY);
 
-      const codY = codBlankY + 19;
+      // Row 12: COD (tightened step from +19 to +10)
+      const codY = codBlankY + 14;
       drawPipe(codY);
       drawLabelValue(rightTextX, codY, 'COD : ', data.cod, false, false);
 
+      // Row 13: Compact blank pipe row above SHS (tightened step from +20 to +12)
       const shsBlankY = codY + 20;
       drawPipe(shsBlankY);
 
-      const shsY = shsBlankY + 19;
+      // Row 14: SHS (tightened step from +19 to +10)
+      const shsY = shsBlankY + 10;
       drawPipe(shsY);
       drawLabelValue(rightTextX, shsY, 'SHS : ', data.shs, false, false);
 
