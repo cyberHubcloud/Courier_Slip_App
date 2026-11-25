@@ -1,0 +1,8 @@
+{
+  "appId": "com.consignment.slipeditor",
+  "appName": "Consignment Slip Editor",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}
