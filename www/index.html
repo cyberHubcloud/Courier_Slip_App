@@ -24,7 +24,7 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Double outer border frame matching image_a8cdc0.png */
+    /* Double outer border frame */
     .slip-outer-frame {
       background-color: #ffffff;
       border-top: 1.8px solid #000000;
@@ -59,6 +59,30 @@
       transform-origin: center;
     }
 
+    /* Smooth horizontal scroll container for mobile & desktop */
+    .slip-scroll-viewport {
+      width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: auto;
+      scrollbar-color: #64748b #e2e8f0;
+    }
+
+    .slip-scroll-viewport::-webkit-scrollbar {
+      height: 10px;
+    }
+
+    .slip-scroll-viewport::-webkit-scrollbar-track {
+      background: #e2e8f0;
+      border-radius: 9999px;
+    }
+
+    .slip-scroll-viewport::-webkit-scrollbar-thumb {
+      background: #64748b;
+      border-radius: 9999px;
+    }
+
     /* Print isolation: only prints the shipping slip container cleanly */
     @media print {
       body * {
@@ -84,6 +108,40 @@
   <div id="toast-box" class="fixed bottom-5 right-5 z-50 hidden items-center gap-2.5 bg-slate-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg transition-opacity duration-300">
     <span id="toast-icon" class="w-2 h-2 rounded-full bg-emerald-400"></span>
     <span id="toast-message">Action completed</span>
+  </div>
+
+  <!-- Android / WebView Fallback Modal for Direct Image Save & Share -->
+  <div id="mobile-export-modal" class="fixed inset-0 z-50 hidden bg-slate-900/80 backdrop-blur-xs items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="text-base font-bold text-slate-900">Slip PNG Ready</h3>
+          <p id="modal-filename" class="text-xs text-slate-500 font-mono">CN_slip.png</p>
+        </div>
+        <button id="closeModalBtn" type="button" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div class="bg-slate-100 p-3 rounded-xl border border-slate-200 flex justify-center overflow-auto">
+        <img id="modal-preview-img" src="" alt="Consignment Slip PNG" class="max-w-full h-auto border border-slate-300 shadow-sm bg-white" />
+      </div>
+
+      <p class="text-xs text-slate-600 text-center">
+        Press and hold the image above and tap <strong>Download image</strong>, or use <strong>Share / Save to Device</strong> below.
+      </p>
+
+      <div class="flex gap-2.5">
+        <button id="modalShareBtn" type="button" class="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition">
+          Share / Save to Device
+        </button>
+        <button id="modalDoneBtn" type="button" class="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium rounded-xl transition">
+          Close
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Top Navigation & Action Bar -->
@@ -143,7 +201,15 @@
           </div>
           <div>
             <label for="input-date" class="block text-xs font-semibold text-slate-700 mb-1">DATE</label>
-            <input id="input-date" type="text" data-field="date" value="28/01/2025" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+            <div class="relative flex items-center">
+              <input id="input-date" type="text" data-field="date" value="28/01/2025" placeholder="DD/MM/YYYY" class="w-full pr-9 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+              <input id="picker-date" type="date" aria-label="Pick date from calendar" class="opacity-0 pointer-events-none w-0 h-0 absolute right-2">
+              <button id="openDatePickerBtn" type="button" title="Open calendar" class="absolute right-2 p-1 text-slate-500 hover:text-blue-600 rounded transition cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -247,158 +313,166 @@
 
     </section>
 
-    <!-- Right Panel: Exact Replica Live Preview -->
-    <section class="lg:col-span-7 flex flex-col items-center justify-center bg-slate-200/80 rounded-2xl border border-slate-300/90 p-4 sm:p-6 min-h-[480px] overflow-x-auto">
+    <!-- Right Panel: Exact Replica Live Preview with Horizontal Scroll -->
+    <section class="lg:col-span-7 flex flex-col items-stretch justify-center bg-slate-200/80 rounded-2xl border border-slate-300/90 p-4 sm:p-6 min-h-[480px]">
       
-      <!-- Preview Header Info -->
-      <div class="mb-3 flex flex-wrap items-center justify-between gap-2 w-full max-w-[776px]">
+      <!-- Preview Header Info & Mobile Horizontal Scroll Controls -->
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2 w-full">
         <span class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
           <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-          Live Slip Preview (Exact Double-Border &amp; Spacing Replica)
+          Live Slip Preview (Scroll Left / Right on Mobile)
         </span>
-        <span class="text-xs text-slate-500 bg-white/80 px-2.5 py-1 rounded-md border border-slate-200">
-          Click any text inside the slip to edit directly
-        </span>
+        <div class="flex items-center gap-1.5">
+          <button id="scrollLeftBtn" type="button" title="Scroll Left" class="px-2.5 py-1 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 rounded-md border border-slate-300 shadow-2xs transition cursor-pointer">
+            &larr; Left
+          </button>
+          <button id="scrollRightBtn" type="button" title="Scroll Right" class="px-2.5 py-1 text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 rounded-md border border-slate-300 shadow-2xs transition cursor-pointer">
+            Right &rarr;
+          </button>
+        </div>
       </div>
 
-      <!-- Export Wrapper -->
-      <div id="label-export-target" class="bg-white p-2 shadow-xl">
-        <!-- Double Outer Border Frame -->
-        <div class="slip-outer-frame">
-          <!-- Exact 756px x 378px (2:1 ratio) Courier Slip Canvas -->
-          <div class="label-canvas">
-            <div class="slip-inner-box">
-              
-              <!-- LEFT COLUMN (50.8% width matching exact vertical pipe column alignment) -->
-              <div class="w-[50.8%] h-full flex flex-col justify-between pl-[9px] pr-[5px] pt-[9px] pb-[8px] text-[15.5px] text-black">
+      <!-- Horizontal Scroll Viewport so Right Side of Slip is Never Cut Off on Mobile -->
+      <div id="slip-scroll-container" class="slip-scroll-viewport rounded-xl bg-slate-300/60 p-3 border border-slate-300">
+        <!-- Export Wrapper -->
+        <div id="label-export-target" class="bg-white p-2 shadow-xl inline-block">
+          <!-- Double Outer Border Frame -->
+          <div class="slip-outer-frame">
+            <!-- Exact 756px x 378px (2:1 ratio) Courier Slip Canvas -->
+            <div class="label-canvas">
+              <div class="slip-inner-box">
                 
-                <!-- Top Left: CN & Shipper -->
-                <div>
-                  <!-- Line 1: CN -->
-                  <div class="leading-[21px]">
-                    <span>CN : </span><strong id="prev-cn" contenteditable="true" spellcheck="false" class="font-bold outline-none focus:bg-amber-100 rounded-sm">10600138019</strong>
-                  </div>
-
-                  <!-- Blank gap row (~14px) matching blank pipe row on right -->
-                  <div class="h-[14px]"></div>
-
-                  <!-- Shipper Block -->
-                  <div class="leading-[21.5px]">
-                    <div class="font-bold tracking-[0.01em]">SHIPPER</div>
-                    <div>CUSTOMER : <span id="prev-customer" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">880870</span></div>
-                    <div id="prev-shipperName" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">WHO</div>
-                    <div id="prev-shipperAddress" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">WHO BUILDING NIH ROAD</div>
-                  </div>
-                </div>
-
-                <!-- Blank gap (~16px) + Solid Horizontal Black Line stopping just before the '|' column -->
-                <div class="w-full pt-[15px] pb-[2px] pr-[2px]">
-                  <div class="w-full border-t-[1.8px] border-black"></div>
-                </div>
-
-                <!-- Bottom Left: Consignee -->
-                <div class="flex-1 flex flex-col pt-[2px] leading-[21px]">
+                <!-- LEFT COLUMN (50.8% width matching exact vertical pipe column alignment) -->
+                <div class="w-[50.8%] h-full flex flex-col justify-between pl-[9px] pr-[5px] pt-[9px] pb-[8px] text-[15.5px] text-black">
+                  
+                  <!-- Top Left: CN & Shipper -->
                   <div>
-                    <div class="font-bold tracking-[0.01em]">CONSIGNEE</div>
-                    <div id="prev-consigneeDept" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">VEROLOGY DEPT.</div>
+                    <!-- Line 1: CN -->
+                    <div class="leading-[21px]">
+                      <span>CN : </span><strong id="prev-cn" contenteditable="true" spellcheck="false" class="font-bold outline-none focus:bg-amber-100 rounded-sm">10600138019</strong>
+                    </div>
+
+                    <!-- Blank gap row (~14px) matching blank pipe row on right -->
+                    <div class="h-[14px]"></div>
+
+                    <!-- Shipper Block -->
+                    <div class="leading-[21.5px]">
+                      <div class="font-bold tracking-[0.01em]">SHIPPER</div>
+                      <div>CUSTOMER : <span id="prev-customer" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">880870</span></div>
+                      <div id="prev-shipperName" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">WHO</div>
+                      <div id="prev-shipperAddress" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">WHO BUILDING NIH ROAD</div>
+                    </div>
                   </div>
 
-                  <!-- Shortened gap (12px) between Department and Lab Address -->
-                  <div class="h-[12px]"></div>
-
-                  <div class="leading-[21px]">
-                    <div id="prev-consigneeAddr1" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">POLIO LAB. N.I.H. CHAK SHAHZAD</div>
-                    <div id="prev-consigneeAddr2" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">ISLAMABADISLAMABAD</div>
-                    <div id="prev-consigneeAddr3" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">ISLAMABADISLAMABAD</div>
-                    <div>CITY : <span id="prev-city" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">ISLAMABAD</span></div>
+                  <!-- Blank gap (~16px) + Solid Horizontal Black Line stopping just before the '|' column -->
+                  <div class="w-full pt-[15px] pb-[2px] pr-[2px]">
+                    <div class="w-full border-t-[1.8px] border-black"></div>
                   </div>
+
+                  <!-- Bottom Left: Consignee -->
+                  <div class="flex-1 flex flex-col pt-[2px] leading-[21px]">
+                    <div>
+                      <div class="font-bold tracking-[0.01em]">CONSIGNEE</div>
+                      <div id="prev-consigneeDept" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">VEROLOGY DEPT.</div>
+                    </div>
+
+                    <!-- Shortened gap (12px) between Department and Lab Address -->
+                    <div class="h-[12px]"></div>
+
+                    <div class="leading-[21px]">
+                      <div id="prev-consigneeAddr1" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">POLIO LAB. N.I.H. CHAK SHAHZAD</div>
+                      <div id="prev-consigneeAddr2" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">ISLAMABADISLAMABAD</div>
+                      <div id="prev-consigneeAddr3" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">ISLAMABADISLAMABAD</div>
+                      <div>CITY : <span id="prev-city" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">ISLAMABAD</span></div>
+                    </div>
+                  </div>
+
+                </div>
+
+                <!-- RIGHT COLUMN (49.2% width with row-by-row vertical '|' pipe characters) -->
+                <div class="w-[49.2%] h-full pl-[1px] pr-[8px] pt-[6px] pb-[8px] flex flex-col justify-between text-[15.5px] text-black">
+                  
+                  <!-- Row 1: ORGN & DSTN -->
+                  <div class="flex items-center leading-[21px]">
+                    <span class="pipe-glyph">|</span>
+                    <span class="ml-[2px]">ORGN : </span><strong id="prev-orgn" contenteditable="true" spellcheck="false" class="font-bold outline-none focus:bg-amber-100 rounded-sm">JHG</strong>
+                    <span class="ml-[16px]">DSTN : </span><strong id="prev-dstn" contenteditable="true" spellcheck="false" class="font-bold outline-none focus:bg-amber-100 rounded-sm">ISB</strong>
+                  </div>
+
+                  <!-- Row 2: Blank pipe row matching gap under CN -->
+                  <div class="flex items-center leading-[16px]">
+                    <span class="pipe-glyph">|</span>
+                  </div>
+
+                  <!-- Rows 3 to 10: Shipment Details -->
+                  <div class="leading-[21.5px]">
+                    <div class="flex items-center">
+                      <span class="pipe-glyph">|</span>
+                      <span class="ml-[2px]">DATE : <span id="prev-date" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">28/01/2025</span></span>
+                    </div>
+                    <div class="flex items-center">
+                      <span class="pipe-glyph">|</span>
+                      <span class="ml-[2px]">WEIGHT : <span id="prev-weight" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">5 KG</span></span>
+                    </div>
+                    <div class="flex items-center">
+                      <span class="pipe-glyph">|</span>
+                      <span class="ml-[2px]">NO. OF PCS : <span id="prev-pcs" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">1</span></span>
+                    </div>
+                    <div class="flex items-center">
+                      <span class="pipe-glyph">|</span>
+                      <span class="ml-[2px]">PRODUCT : <span id="prev-product" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">GENERAL</span></span>
+                    </div>
+                    <div class="flex items-center">
+                      <span class="pipe-glyph">|</span>
+                      <span class="ml-[2px]">SERVICE : <span id="prev-service" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">Express</span></span>
+                    </div>
+                    <div class="flex items-center">
+                      <span class="pipe-glyph">|</span>
+                      <span class="ml-[2px]"><strong class="font-bold">CUST REF : </strong><span id="prev-custRef" contenteditable="true" spellcheck="false" class="font-normal outline-none focus:bg-amber-100 px-1 rounded-sm min-w-[40px] inline-block"></span></span>
+                    </div>
+                    <div class="flex items-center">
+                      <span class="pipe-glyph">|</span>
+                      <span class="ml-[2px]">BOOKING STAFF : <span id="prev-bookingStaff" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">KASHIF UMAR</span></span>
+                    </div>
+                    <div class="flex items-center">
+                      <span class="pipe-glyph">|</span>
+                      <span class="ml-[2px]">INS. AMOUNT : <span id="prev-insAmount" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">0</span></span>
+                    </div>
+                  </div>
+
+                  <!-- Row 11: Blank pipe row above COD -->
+                  <div class="flex items-center leading-[16px]">
+                    <span class="pipe-glyph">|</span>
+                  </div>
+
+                  <!-- Row 12: COD -->
+                  <div class="flex items-center leading-[21px]">
+                    <span class="pipe-glyph">|</span>
+                    <span class="ml-[2px]">COD : <span id="prev-cod" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">0</span></span>
+                  </div>
+
+                  <!-- Row 13: Blank pipe row above SHS -->
+                  <div class="flex items-center leading-[16px]">
+                    <span class="pipe-glyph">|</span>
+                  </div>
+
+                  <!-- Row 14: SHS -->
+                  <div class="flex items-center leading-[21px]">
+                    <span class="pipe-glyph">|</span>
+                    <span class="ml-[2px]">SHS : <span id="prev-shs" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 px-1 rounded-sm min-w-[40px] inline-block"></span></span>
+                  </div>
+
                 </div>
 
               </div>
-
-              <!-- RIGHT COLUMN (49.2% width with row-by-row vertical '|' pipe characters) -->
-              <div class="w-[49.2%] h-full pl-[1px] pr-[8px] pt-[6px] pb-[8px] flex flex-col justify-between text-[15.5px] text-black">
-                
-                <!-- Row 1: ORGN & DSTN -->
-                <div class="flex items-center leading-[21px]">
-                  <span class="pipe-glyph">|</span>
-                  <span class="ml-[2px]">ORGN : </span><strong id="prev-orgn" contenteditable="true" spellcheck="false" class="font-bold outline-none focus:bg-amber-100 rounded-sm">JHG</strong>
-                  <span class="ml-[16px]">DSTN : </span><strong id="prev-dstn" contenteditable="true" spellcheck="false" class="font-bold outline-none focus:bg-amber-100 rounded-sm">ISB</strong>
-                </div>
-
-                <!-- Row 2: Blank pipe row matching gap under CN -->
-                <div class="flex items-center leading-[16px]">
-                  <span class="pipe-glyph">|</span>
-                </div>
-
-                <!-- Rows 3 to 10: Shipment Details -->
-                <div class="leading-[21.5px]">
-                  <div class="flex items-center">
-                    <span class="pipe-glyph">|</span>
-                    <span class="ml-[2px]">DATE : <span id="prev-date" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">28/01/2025</span></span>
-                  </div>
-                  <div class="flex items-center">
-                    <span class="pipe-glyph">|</span>
-                    <span class="ml-[2px]">WEIGHT : <span id="prev-weight" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">5 KG</span></span>
-                  </div>
-                  <div class="flex items-center">
-                    <span class="pipe-glyph">|</span>
-                    <span class="ml-[2px]">NO. OF PCS : <span id="prev-pcs" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">1</span></span>
-                  </div>
-                  <div class="flex items-center">
-                    <span class="pipe-glyph">|</span>
-                    <span class="ml-[2px]">PRODUCT : <span id="prev-product" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">GENERAL</span></span>
-                  </div>
-                  <div class="flex items-center">
-                    <span class="pipe-glyph">|</span>
-                    <span class="ml-[2px]">SERVICE : <span id="prev-service" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">Express</span></span>
-                  </div>
-                  <div class="flex items-center">
-                    <span class="pipe-glyph">|</span>
-                    <span class="ml-[2px]"><strong class="font-bold">CUST REF : </strong><span id="prev-custRef" contenteditable="true" spellcheck="false" class="font-normal outline-none focus:bg-amber-100 px-1 rounded-sm min-w-[40px] inline-block"></span></span>
-                  </div>
-                  <div class="flex items-center">
-                    <span class="pipe-glyph">|</span>
-                    <span class="ml-[2px]">BOOKING STAFF : <span id="prev-bookingStaff" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">KASHIF UMAR</span></span>
-                  </div>
-                  <div class="flex items-center">
-                    <span class="pipe-glyph">|</span>
-                    <span class="ml-[2px]">INS. AMOUNT : <span id="prev-insAmount" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">0</span></span>
-                  </div>
-                </div>
-
-                <!-- Row 11: Blank pipe row above COD -->
-                <div class="flex items-center leading-[16px]">
-                  <span class="pipe-glyph">|</span>
-                </div>
-
-                <!-- Row 12: COD -->
-                <div class="flex items-center leading-[21px]">
-                  <span class="pipe-glyph">|</span>
-                  <span class="ml-[2px]">COD : <span id="prev-cod" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">0</span></span>
-                </div>
-
-                <!-- Row 13: Blank pipe row above SHS -->
-                <div class="flex items-center leading-[16px]">
-                  <span class="pipe-glyph">|</span>
-                </div>
-
-                <!-- Row 14: SHS -->
-                <div class="flex items-center leading-[21px]">
-                  <span class="pipe-glyph">|</span>
-                  <span class="ml-[2px]">SHS : <span id="prev-shs" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 px-1 rounded-sm min-w-[40px] inline-block"></span></span>
-                </div>
-
-              </div>
-
             </div>
           </div>
         </div>
       </div>
 
       <!-- Footer Caption -->
-      <p class="mt-4 text-xs text-slate-500 text-center max-w-md">
-        PNG export renders at 3&times; resolution with the exact double outer borders, vertical pipe divider, and spacing preserved.
+      <p class="mt-3 text-xs text-slate-500 text-center">
+        Swipe or use <strong>&larr; Left</strong> / <strong>Right &rarr;</strong> to inspect the full slip on mobile. PNG export renders at 3&times; resolution.
       </p>
 
     </section>
@@ -406,10 +480,10 @@
   </main>
 
   <script>
-    // Initial default state matching the original uploaded consignment slip (image_a8cdc0.png)
+    // Initial default state matching the original uploaded consignment slip
     const defaultValues = {
       cn: "10600138019",
-      orgn: "JHG",
+      orgn: "RJP",
       dstn: "ISB",
       date: "28/01/2025",
       customer: "880870",
@@ -476,6 +550,84 @@
       }
     });
 
+    // Calendar Date Picker sync (DD/MM/YYYY <-> YYYY-MM-DD)
+    const dateInput = document.getElementById('input-date');
+    const datePicker = document.getElementById('picker-date');
+    const openDatePickerBtn = document.getElementById('openDatePickerBtn');
+    const datePreviewEl = document.getElementById('prev-date');
+
+    function ddmmyyyyToIso(val) {
+      const match = (val || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (!match) return '';
+      const day = match[1].padStart(2, '0');
+      const month = match[2].padStart(2, '0');
+      const year = match[3];
+      return `${year}-${month}-${day}`;
+    }
+
+    function isoToDdmmyyyy(isoVal) {
+      const match = (isoVal || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!match) return '';
+      return `${match[3]}/${match[2]}/${match[1]}`;
+    }
+
+    function syncDatePickerFromText() {
+      if (datePicker && dateInput) {
+        datePicker.value = ddmmyyyyToIso(dateInput.value);
+      }
+    }
+
+    syncDatePickerFromText();
+
+    if (openDatePickerBtn && datePicker) {
+      openDatePickerBtn.addEventListener('click', () => {
+        syncDatePickerFromText();
+        if (typeof datePicker.showPicker === 'function') {
+          datePicker.showPicker();
+        } else {
+          datePicker.style.pointerEvents = 'auto';
+          datePicker.focus();
+          datePicker.click();
+          datePicker.style.pointerEvents = 'none';
+        }
+      });
+    }
+
+    if (datePicker && dateInput) {
+      datePicker.addEventListener('change', () => {
+        const formatted = isoToDdmmyyyy(datePicker.value);
+        if (!formatted) return;
+        dateInput.value = formatted;
+        if (datePreviewEl) {
+          datePreviewEl.textContent = formatted;
+        }
+      });
+    }
+
+    if (dateInput) {
+      dateInput.addEventListener('input', syncDatePickerFromText);
+    }
+    if (datePreviewEl) {
+      datePreviewEl.addEventListener('input', syncDatePickerFromText);
+    }
+
+    // Horizontal Left / Right scroll buttons for mobile & desktop
+    const slipScrollContainer = document.getElementById('slip-scroll-container');
+    const scrollLeftBtn = document.getElementById('scrollLeftBtn');
+    const scrollRightBtn = document.getElementById('scrollRightBtn');
+
+    if (scrollLeftBtn && slipScrollContainer) {
+      scrollLeftBtn.addEventListener('click', () => {
+        slipScrollContainer.scrollBy({ left: -240, behavior: 'smooth' });
+      });
+    }
+
+    if (scrollRightBtn && slipScrollContainer) {
+      scrollRightBtn.addEventListener('click', () => {
+        slipScrollContainer.scrollBy({ left: 240, behavior: 'smooth' });
+      });
+    }
+
     // Reset Default button handler
     document.getElementById('resetBtn').addEventListener('click', () => {
       inputs.forEach(input => {
@@ -487,6 +639,10 @@
           previewEl.textContent = val;
         }
       });
+      syncDatePickerFromText();
+      if (slipScrollContainer) {
+        slipScrollContainer.scrollTo({ left: 0, behavior: 'smooth' });
+      }
       showToast('Reset to default consignment slip values');
     });
 
@@ -506,12 +662,11 @@
     }
 
     // Native High-Resolution HTML5 Canvas Renderer (3x scale: 2160 x 1080)
-    // Guarantees 100% crisp borders, pipe characters, labels, and text without DOM parser dropouts
     function renderSlipToCanvas(data) {
       const scale = 3;
       const logicalW = 720;
       const logicalH = 360;
-      const pad = 8; // outer white margin around double border
+      const pad = 8;
 
       const canvas = document.createElement('canvas');
       canvas.width = (logicalW + pad * 2) * scale;
@@ -527,11 +682,8 @@
       // Double outer border frame
       ctx.strokeStyle = '#000000';
       ctx.lineWidth = 1.8;
-
-      // Outer rectangle
       ctx.strokeRect(pad, pad, logicalW, logicalH);
 
-      // Inner rectangle (4px gap inside outer border)
       const inset = 4;
       const innerX = pad + inset;
       const innerY = pad + inset;
@@ -550,7 +702,6 @@
       const regularFont = '15.5px Arial, Helvetica, sans-serif';
       const boldFont = 'bold 15.5px Arial, Helvetica, sans-serif';
 
-      // Helper to draw "PREFIX : VALUE" with optional bold prefix or bold value
       function drawLabelValue(x, y, prefix, value, boldPrefix = false, boldValue = false) {
         ctx.font = boldPrefix ? boldFont : regularFont;
         ctx.fillText(prefix, x, y);
@@ -560,7 +711,6 @@
         return prefixW + ctx.measureText(value || '').width;
       }
 
-      // Helper to draw stacked vertical pipe '|' glyph matching the slip's center column
       function drawPipe(y) {
         ctx.save();
         ctx.font = 'bold 19px "Courier New", Courier, monospace';
@@ -569,10 +719,8 @@
       }
 
       // ================= LEFT COLUMN =================
-      // Row 1: CN : 10600138019
       drawLabelValue(leftX, innerY + 10, 'CN : ', data.cn, false, true);
 
-      // Shipper Block (after blank line gap)
       const shipperStartY = innerY + 45;
       const leftLineH = 21.5;
 
@@ -585,7 +733,6 @@
       ctx.fillText(data.shipperName || '', leftX, shipperStartY + leftLineH * 2);
       ctx.fillText(data.shipperAddress || '', leftX, shipperStartY + leftLineH * 3);
 
-      // Horizontal solid divider line stopping cleanly just before center pipe column
       const hrY = shipperStartY + leftLineH * 4 + 14;
       ctx.beginPath();
       ctx.lineWidth = 1.8;
@@ -593,7 +740,6 @@
       ctx.lineTo(dividerX - 4, hrY);
       ctx.stroke();
 
-      // Consignee Block
       const consigneeStartY = hrY + 7;
       ctx.font = boldFont;
       ctx.fillText('CONSIGNEE', leftX, consigneeStartY);
@@ -601,7 +747,6 @@
       ctx.font = regularFont;
       ctx.fillText(data.consigneeDept || '', leftX, consigneeStartY + 21);
 
-      // Shortened 12px gap before address lines
       const addrStartY = consigneeStartY + 21 + 21 + 12;
       ctx.fillText(data.consigneeAddr1 || '', leftX, addrStartY);
       ctx.fillText(data.consigneeAddr2 || '', leftX, addrStartY + 21);
@@ -609,16 +754,13 @@
       drawLabelValue(leftX, addrStartY + 63, 'CITY : ', data.city, false, false);
 
       // ================= RIGHT COLUMN & CENTER PIPE '|' =================
-      // Row 1: ORGN : JHG   DSTN : ISB
       const r1Y = innerY + 8;
       drawPipe(r1Y);
       const orgnW = drawLabelValue(rightTextX, r1Y, 'ORGN : ', data.orgn, false, true);
       drawLabelValue(rightTextX + orgnW + 18, r1Y, 'DSTN : ', data.dstn, false, true);
 
-      // Row 2: Blank pipe row
       drawPipe(r1Y + 20);
 
-      // Rows 3 to 10: Shipment Details
       const midStartY = r1Y + 39;
       const rightLineH = 21.5;
 
@@ -639,20 +781,16 @@
         drawLabelValue(rightTextX, y, row.prefix, row.value, row.boldPrefix, false);
       });
 
-      // Row 11: Blank pipe row above COD
       const codBlankY = midStartY + rightRows.length * rightLineH;
       drawPipe(codBlankY);
 
-      // Row 12: COD
       const codY = codBlankY + 19;
       drawPipe(codY);
       drawLabelValue(rightTextX, codY, 'COD : ', data.cod, false, false);
 
-      // Row 13: Blank pipe row above SHS
       const shsBlankY = codY + 20;
       drawPipe(shsBlankY);
 
-      // Row 14: SHS
       const shsY = shsBlankY + 19;
       drawPipe(shsY);
       drawLabelValue(rightTextX, shsY, 'SHS : ', data.shs, false, false);
@@ -660,8 +798,57 @@
       return canvas;
     }
 
-    // High-Resolution PNG Slip Download handler
-    document.getElementById('downloadPngBtn').addEventListener('click', () => {
+    // Modal state & controls for Android WebView fallback
+    let latestExportFile = null;
+    let latestExportDataUrl = '';
+    let latestExportFilename = '';
+
+    const exportModal = document.getElementById('mobile-export-modal');
+    const modalPreviewImg = document.getElementById('modal-preview-img');
+    const modalFilename = document.getElementById('modal-filename');
+
+    function closeExportModal() {
+      exportModal.classList.add('hidden');
+      exportModal.classList.remove('flex');
+    }
+
+    document.getElementById('closeModalBtn').addEventListener('click', closeExportModal);
+    document.getElementById('modalDoneBtn').addEventListener('click', closeExportModal);
+
+    document.getElementById('modalShareBtn').addEventListener('click', async () => {
+      if (latestExportFile && navigator.canShare && navigator.canShare({ files: [latestExportFile] })) {
+        try {
+          await navigator.share({
+            files: [latestExportFile],
+            title: latestExportFilename
+          });
+          showToast('Opened Android Share / Save sheet');
+          return;
+        } catch (err) {
+          if (err && err.name === 'AbortError') return;
+        }
+      }
+      showToast('Press and hold the image to save to your phone');
+    });
+
+    function canvasToBlobAsync(canvas) {
+      return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+          if (blob) resolve(blob);
+          else reject(new Error('Failed to create PNG blob'));
+        }, 'image/png');
+      });
+    }
+
+    function isAndroidOrCapacitor() {
+      const ua = navigator.userAgent || '';
+      const isCapacitor = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+      const isAndroid = /Android/i.test(ua);
+      return isCapacitor || isAndroid;
+    }
+
+    // High-Resolution PNG Slip Download & Android Save/Share handler
+    document.getElementById('downloadPngBtn').addEventListener('click', async () => {
       const btn = document.getElementById('downloadPngBtn');
       const originalHTML = btn.innerHTML;
       btn.disabled = true;
@@ -674,17 +861,71 @@
       try {
         const slipData = getSlipData();
         const safeCn = (slipData.cn || '').trim().replace(/[^a-zA-Z0-9_-]/g, '') || 'slip';
+        const filename = `CN_${safeCn}_slip.png`;
 
         const canvas = renderSlipToCanvas(slipData);
+        const dataUrl = canvas.toDataURL('image/png');
+        const blob = await canvasToBlobAsync(canvas);
+        const file = new File([blob], filename, { type: 'image/png' });
 
+        latestExportFile = file;
+        latestExportDataUrl = dataUrl;
+        latestExportFilename = filename;
+
+        // 1. If Capacitor Filesystem plugin is installed, save directly to Documents
+        const capFilesystem = window.Capacitor?.Plugins?.Filesystem;
+        if (capFilesystem) {
+          try {
+            const base64Data = dataUrl.split(',')[1];
+            await capFilesystem.writeFile({
+              path: filename,
+              data: base64Data,
+              directory: 'DOCUMENTS'
+            });
+            showToast(`Saved ${filename} to Documents`);
+            return;
+          } catch (fsErr) {
+            console.warn('Capacitor Filesystem fallback:', fsErr);
+          }
+        }
+
+        // 2. Android WebView / Mobile Browser
+        if (isAndroidOrCapacitor()) {
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({
+                files: [file],
+                title: filename
+              });
+              showToast(`Ready to save or share ${filename}`);
+              return;
+            } catch (shareErr) {
+              if (shareErr && shareErr.name === 'AbortError') {
+                return;
+              }
+              console.warn('Web Share fallback to modal:', shareErr);
+            }
+          }
+
+          modalPreviewImg.src = dataUrl;
+          modalFilename.textContent = filename;
+          exportModal.classList.remove('hidden');
+          exportModal.classList.add('flex');
+          showToast('Tap "Share / Save to Device" or hold image to save');
+          return;
+        }
+
+        // 3. Desktop browsers: standard Blob URL download
+        const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.download = `CN_${safeCn}_slip.png`;
-        link.href = canvas.toDataURL('image/png');
+        link.download = filename;
+        link.href = blobUrl;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
 
-        showToast(`Downloaded CN_${safeCn}_slip.png`);
+        showToast(`Downloaded ${filename}`);
       } catch (err) {
         console.error('PNG Export Error:', err);
         showToast('PNG export failed. Please try Print / Save PDF.', true);
