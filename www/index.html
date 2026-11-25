@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consignment Slip Editor & Exporter</title>
+  <!-- Load Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Load Inter Font for UI controls -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Exact Arial/Helvetica crisp thermal label typography matching the original courier slip */
+    .label-canvas {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #000000;
+      background-color: #ffffff;
+      width: 756px;
+      height: 378px;
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Double outer border frame matching image_a8cdc0.png */
+    .slip-outer-frame {
+      background-color: #ffffff;
+      border-top: 1.8px solid #000000;
+      border-left: 1.8px solid #000000;
+      border-bottom: 1.8px solid #000000;
+      border-right: 1.8px solid #000000;
+      padding: 4px;
+      display: inline-block;
+    }
+
+    .slip-inner-box {
+      width: 100%;
+      height: 100%;
+      border: 1.8px solid #000000;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: row;
+      background-color: #ffffff;
+    }
+
+    /* Individual pipe character glyph matching dot-matrix/laser vertical bar strokes */
+    .pipe-glyph {
+      display: inline-block;
+      width: 7px;
+      font-family: "Courier New", Courier, monospace;
+      font-weight: 700;
+      font-size: 20px;
+      line-height: 1;
+      color: #000000;
+      user-select: none;
+      transform: scaleY(1.22);
+      transform-origin: center;
+    }
+
+    /* Print isolation: only prints the shipping slip container cleanly */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #label-export-target, #label-export-target * {
+        visibility: visible;
+      }
+      #label-export-target {
+        position: fixed;
+        left: 0;
+        top: 0;
+        margin: 0;
+        padding: 0;
+        box-shadow: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Non-blocking Toast Notification Box -->
+  <div id="toast-box" class="fixed bottom-5 right-5 z-50 hidden items-center gap-2.5 bg-slate-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg transition-opacity duration-300">
+    <span id="toast-icon" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+    <span id="toast-message">Action completed</span>
+  </div>
+
+  <!-- Top Navigation & Action Bar -->
+  <header class="bg-white border-b border-slate-200 px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-sm sticky top-0 z-30">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center font-bold text-base tracking-tight shadow-sm">
+        CN
+      </div>
+      <div>
+        <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">Consignment Slip Editor & Exporter</h1>
+        <p class="text-xs text-slate-500">Edit fields on the left or click text directly on the slip to update live</p>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2.5">
+      <button id="resetBtn" type="button" class="px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-lg transition cursor-pointer">
+        Reset Default
+      </button>
+      <button id="printBtn" type="button" class="px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-800 bg-white border border-slate-300 hover:bg-slate-50 active:bg-slate-100 rounded-lg transition flex items-center gap-2 cursor-pointer">
+        <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+        </svg>
+        Print / Save PDF
+      </button>
+      <button id="downloadPngBtn" type="button" class="px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-lg shadow-sm transition flex items-center gap-2 cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+        </svg>
+        Download PNG Slip
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Split-Screen Workspace -->
+  <main class="flex-1 max-w-[1480px] w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+    <!-- Left Panel: Structured Input Form -->
+    <section class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 lg:max-h-[calc(100vh-105px)] lg:overflow-y-auto space-y-6">
+      
+      <!-- Section 1: Tracking & Routing -->
+      <div>
+        <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-1.5">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500">1. Tracking & Routing</h2>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="sm:col-span-3">
+            <label for="input-cn" class="block text-xs font-semibold text-slate-700 mb-1">CN Number</label>
+            <input id="input-cn" type="text" data-field="cn" value="10600138019" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono transition">
+          </div>
+          <div>
+            <label for="input-orgn" class="block text-xs font-semibold text-slate-700 mb-1">ORGN</label>
+            <input id="input-orgn" type="text" data-field="orgn" value="JHG" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label for="input-dstn" class="block text-xs font-semibold text-slate-700 mb-1">DSTN</label>
+            <input id="input-dstn" type="text" data-field="dstn" value="ISB" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label for="input-date" class="block text-xs font-semibold text-slate-700 mb-1">DATE</label>
+            <input id="input-date" type="text" data-field="date" value="28/01/2025" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Shipper Details -->
+      <div>
+        <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-1.5">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500">2. Shipper Details</h2>
+        </div>
+        <div class="space-y-3">
+          <div>
+            <label for="input-customer" class="block text-xs font-semibold text-slate-700 mb-1">CUSTOMER ID</label>
+            <input id="input-customer" type="text" data-field="customer" value="880870" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label for="input-shipperName" class="block text-xs font-semibold text-slate-700 mb-1">SHIPPER NAME</label>
+            <input id="input-shipperName" type="text" data-field="shipperName" value="WHO" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label for="input-shipperAddress" class="block text-xs font-semibold text-slate-700 mb-1">SHIPPER ADDRESS</label>
+            <input id="input-shipperAddress" type="text" data-field="shipperAddress" value="WHO BUILDING NIH ROAD" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Consignee Details -->
+      <div>
+        <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-1.5">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500">3. Consignee Details</h2>
+        </div>
+        <div class="space-y-3">
+          <div>
+            <label for="input-consigneeDept" class="block text-xs font-semibold text-slate-700 mb-1">CONSIGNEE NAME / DEPT</label>
+            <input id="input-consigneeDept" type="text" data-field="consigneeDept" value="VEROLOGY DEPT." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label for="input-consigneeAddr1" class="block text-xs font-semibold text-slate-700 mb-1">ADDRESS LINE 1</label>
+            <input id="input-consigneeAddr1" type="text" data-field="consigneeAddr1" value="POLIO LAB. N.I.H. CHAK SHAHZAD" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="input-consigneeAddr2" class="block text-xs font-semibold text-slate-700 mb-1">ADDRESS LINE 2</label>
+              <input id="input-consigneeAddr2" type="text" data-field="consigneeAddr2" value="ISLAMABADISLAMABAD" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+            </div>
+            <div>
+              <label for="input-consigneeAddr3" class="block text-xs font-semibold text-slate-700 mb-1">ADDRESS LINE 3</label>
+              <input id="input-consigneeAddr3" type="text" data-field="consigneeAddr3" value="ISLAMABADISLAMABAD" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+            </div>
+          </div>
+          <div>
+            <label for="input-city" class="block text-xs font-semibold text-slate-700 mb-1">CITY</label>
+            <input id="input-city" type="text" data-field="city" value="ISLAMABAD" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: Shipment & Service Info -->
+      <div>
+        <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-1.5">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500">4. Shipment & Service Info</h2>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="input-weight" class="block text-xs font-semibold text-slate-700 mb-1">WEIGHT</label>
+            <input id="input-weight" type="text" data-field="weight" value="5 KG" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label for="input-pcs" class="block text-xs font-semibold text-slate-700 mb-1">NO. OF PCS</label>
+            <input id="input-pcs" type="text" data-field="pcs" value="1" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label for="input-product" class="block text-xs font-semibold text-slate-700 mb-1">PRODUCT</label>
+            <input id="input-product" type="text" data-field="product" value="GENERAL" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label for="input-service" class="block text-xs font-semibold text-slate-700 mb-1">SERVICE</label>
+            <input id="input-service" type="text" data-field="service" value="Express" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label for="input-custRef" class="block text-xs font-semibold text-slate-700 mb-1">CUST REF</label>
+            <input id="input-custRef" type="text" data-field="custRef" value="" placeholder="Optional" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label for="input-bookingStaff" class="block text-xs font-semibold text-slate-700 mb-1">BOOKING STAFF</label>
+            <input id="input-bookingStaff" type="text" data-field="bookingStaff" value="KASHIF UMAR" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label for="input-insAmount" class="block text-xs font-semibold text-slate-700 mb-1">INS. AMOUNT</label>
+            <input id="input-insAmount" type="text" data-field="insAmount" value="0" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div>
+            <label for="input-cod" class="block text-xs font-semibold text-slate-700 mb-1">COD</label>
+            <input id="input-cod" type="text" data-field="cod" value="0" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+          <div class="sm:col-span-2">
+            <label for="input-shs" class="block text-xs font-semibold text-slate-700 mb-1">SHS</label>
+            <input id="input-shs" type="text" data-field="shs" value="" placeholder="Optional" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Right Panel: Exact Replica Live Preview -->
+    <section class="lg:col-span-7 flex flex-col items-center justify-center bg-slate-200/80 rounded-2xl border border-slate-300/90 p-4 sm:p-6 min-h-[480px] overflow-x-auto">
+      
+      <!-- Preview Header Info -->
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2 w-full max-w-[776px]">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          Live Slip Preview (Exact Double-Border &amp; Spacing Replica)
+        </span>
+        <span class="text-xs text-slate-500 bg-white/80 px-2.5 py-1 rounded-md border border-slate-200">
+          Click any text inside the slip to edit directly
+        </span>
+      </div>
+
+      <!-- Export Wrapper -->
+      <div id="label-export-target" class="bg-white p-2 shadow-xl">
+        <!-- Double Outer Border Frame -->
+        <div class="slip-outer-frame">
+          <!-- Exact 756px x 378px (2:1 ratio) Courier Slip Canvas -->
+          <div class="label-canvas">
+            <div class="slip-inner-box">
+              
+              <!-- LEFT COLUMN (50.8% width matching exact vertical pipe column alignment) -->
+              <div class="w-[50.8%] h-full flex flex-col justify-between pl-[9px] pr-[5px] pt-[9px] pb-[8px] text-[15.5px] text-black">
+                
+                <!-- Top Left: CN & Shipper -->
+                <div>
+                  <!-- Line 1: CN -->
+                  <div class="leading-[21px]">
+                    <span>CN : </span><strong id="prev-cn" contenteditable="true" spellcheck="false" class="font-bold outline-none focus:bg-amber-100 rounded-sm">10600138019</strong>
+                  </div>
+
+                  <!-- Blank gap row (~14px) matching blank pipe row on right -->
+                  <div class="h-[14px]"></div>
+
+                  <!-- Shipper Block -->
+                  <div class="leading-[21.5px]">
+                    <div class="font-bold tracking-[0.01em]">SHIPPER</div>
+                    <div>CUSTOMER : <span id="prev-customer" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">880870</span></div>
+                    <div id="prev-shipperName" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">WHO</div>
+                    <div id="prev-shipperAddress" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">WHO BUILDING NIH ROAD</div>
+                  </div>
+                </div>
+
+                <!-- Blank gap (~16px) + Solid Horizontal Black Line stopping just before the '|' column -->
+                <div class="w-full pt-[15px] pb-[2px] pr-[2px]">
+                  <div class="w-full border-t-[1.8px] border-black"></div>
+                </div>
+
+                <!-- Bottom Left: Consignee -->
+                <div class="flex-1 flex flex-col pt-[2px] leading-[21px]">
+                  <div>
+                    <div class="font-bold tracking-[0.01em]">CONSIGNEE</div>
+                    <div id="prev-consigneeDept" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">VEROLOGY DEPT.</div>
+                  </div>
+
+                  <!-- Shortened gap (12px) between Department and Lab Address -->
+                  <div class="h-[12px]"></div>
+
+                  <div class="leading-[21px]">
+                    <div id="prev-consigneeAddr1" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">POLIO LAB. N.I.H. CHAK SHAHZAD</div>
+                    <div id="prev-consigneeAddr2" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">ISLAMABADISLAMABAD</div>
+                    <div id="prev-consigneeAddr3" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm min-h-[21px]">ISLAMABADISLAMABAD</div>
+                    <div>CITY : <span id="prev-city" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">ISLAMABAD</span></div>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- RIGHT COLUMN (49.2% width with row-by-row vertical '|' pipe characters) -->
+              <div class="w-[49.2%] h-full pl-[1px] pr-[8px] pt-[6px] pb-[8px] flex flex-col justify-between text-[15.5px] text-black">
+                
+                <!-- Row 1: ORGN & DSTN -->
+                <div class="flex items-center leading-[21px]">
+                  <span class="pipe-glyph">|</span>
+                  <span class="ml-[2px]">ORGN : </span><strong id="prev-orgn" contenteditable="true" spellcheck="false" class="font-bold outline-none focus:bg-amber-100 rounded-sm">JHG</strong>
+                  <span class="ml-[16px]">DSTN : </span><strong id="prev-dstn" contenteditable="true" spellcheck="false" class="font-bold outline-none focus:bg-amber-100 rounded-sm">ISB</strong>
+                </div>
+
+                <!-- Row 2: Blank pipe row matching gap under CN -->
+                <div class="flex items-center leading-[16px]">
+                  <span class="pipe-glyph">|</span>
+                </div>
+
+                <!-- Rows 3 to 10: Shipment Details -->
+                <div class="leading-[21.5px]">
+                  <div class="flex items-center">
+                    <span class="pipe-glyph">|</span>
+                    <span class="ml-[2px]">DATE : <span id="prev-date" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">28/01/2025</span></span>
+                  </div>
+                  <div class="flex items-center">
+                    <span class="pipe-glyph">|</span>
+                    <span class="ml-[2px]">WEIGHT : <span id="prev-weight" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">5 KG</span></span>
+                  </div>
+                  <div class="flex items-center">
+                    <span class="pipe-glyph">|</span>
+                    <span class="ml-[2px]">NO. OF PCS : <span id="prev-pcs" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">1</span></span>
+                  </div>
+                  <div class="flex items-center">
+                    <span class="pipe-glyph">|</span>
+                    <span class="ml-[2px]">PRODUCT : <span id="prev-product" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">GENERAL</span></span>
+                  </div>
+                  <div class="flex items-center">
+                    <span class="pipe-glyph">|</span>
+                    <span class="ml-[2px]">SERVICE : <span id="prev-service" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">Express</span></span>
+                  </div>
+                  <div class="flex items-center">
+                    <span class="pipe-glyph">|</span>
+                    <span class="ml-[2px]"><strong class="font-bold">CUST REF : </strong><span id="prev-custRef" contenteditable="true" spellcheck="false" class="font-normal outline-none focus:bg-amber-100 px-1 rounded-sm min-w-[40px] inline-block"></span></span>
+                  </div>
+                  <div class="flex items-center">
+                    <span class="pipe-glyph">|</span>
+                    <span class="ml-[2px]">BOOKING STAFF : <span id="prev-bookingStaff" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">KASHIF UMAR</span></span>
+                  </div>
+                  <div class="flex items-center">
+                    <span class="pipe-glyph">|</span>
+                    <span class="ml-[2px]">INS. AMOUNT : <span id="prev-insAmount" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">0</span></span>
+                  </div>
+                </div>
+
+                <!-- Row 11: Blank pipe row above COD -->
+                <div class="flex items-center leading-[16px]">
+                  <span class="pipe-glyph">|</span>
+                </div>
+
+                <!-- Row 12: COD -->
+                <div class="flex items-center leading-[21px]">
+                  <span class="pipe-glyph">|</span>
+                  <span class="ml-[2px]">COD : <span id="prev-cod" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 rounded-sm">0</span></span>
+                </div>
+
+                <!-- Row 13: Blank pipe row above SHS -->
+                <div class="flex items-center leading-[16px]">
+                  <span class="pipe-glyph">|</span>
+                </div>
+
+                <!-- Row 14: SHS -->
+                <div class="flex items-center leading-[21px]">
+                  <span class="pipe-glyph">|</span>
+                  <span class="ml-[2px]">SHS : <span id="prev-shs" contenteditable="true" spellcheck="false" class="outline-none focus:bg-amber-100 px-1 rounded-sm min-w-[40px] inline-block"></span></span>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Caption -->
+      <p class="mt-4 text-xs text-slate-500 text-center max-w-md">
+        PNG export renders at 3&times; resolution with the exact double outer borders, vertical pipe divider, and spacing preserved.
+      </p>
+
+    </section>
+
+  </main>
+
+  <script>
+    // Initial default state matching the original uploaded consignment slip (image_a8cdc0.png)
+    const defaultValues = {
+      cn: "10600138019",
+      orgn: "JHG",
+      dstn: "ISB",
+      date: "28/01/2025",
+      customer: "880870",
+      shipperName: "WHO",
+      shipperAddress: "WHO BUILDING NIH ROAD",
+      consigneeDept: "VEROLOGY DEPT.",
+      consigneeAddr1: "POLIO LAB. N.I.H. CHAK SHAHZAD",
+      consigneeAddr2: "ISLAMABADISLAMABAD",
+      consigneeAddr3: "ISLAMABADISLAMABAD",
+      city: "ISLAMABAD",
+      weight: "5 KG",
+      pcs: "1",
+      product: "GENERAL",
+      service: "Express",
+      custRef: "",
+      bookingStaff: "KASHIF UMAR",
+      insAmount: "0",
+      cod: "0",
+      shs: ""
+    };
+
+    // Show non-blocking status toast
+    let toastTimeout;
+    function showToast(message, isError = false) {
+      const toastBox = document.getElementById('toast-box');
+      const toastMsg = document.getElementById('toast-message');
+      const toastIcon = document.getElementById('toast-icon');
+      if (!toastBox || !toastMsg) return;
+
+      toastMsg.textContent = message;
+      if (toastIcon) {
+        toastIcon.className = isError
+          ? 'w-2 h-2 rounded-full bg-rose-400'
+          : 'w-2 h-2 rounded-full bg-emerald-400';
+      }
+
+      toastBox.classList.remove('hidden');
+      toastBox.classList.add('flex');
+
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toastBox.classList.add('hidden');
+        toastBox.classList.remove('flex');
+      }, 3000);
+    }
+
+    const inputs = document.querySelectorAll('input[data-field]');
+
+    // Two-way sync between Form Inputs and Live Preview
+    inputs.forEach(input => {
+      const field = input.getAttribute('data-field');
+      const previewEl = document.getElementById(`prev-${field}`);
+
+      input.addEventListener('input', () => {
+        if (previewEl) {
+          previewEl.textContent = input.value;
+        }
+      });
+
+      if (previewEl) {
+        previewEl.addEventListener('input', () => {
+          input.value = previewEl.textContent;
+        });
+      }
+    });
+
+    // Reset Default button handler
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      inputs.forEach(input => {
+        const field = input.getAttribute('data-field');
+        const val = defaultValues[field] ?? '';
+        input.value = val;
+        const previewEl = document.getElementById(`prev-${field}`);
+        if (previewEl) {
+          previewEl.textContent = val;
+        }
+      });
+      showToast('Reset to default consignment slip values');
+    });
+
+    // Print / Save PDF handler
+    document.getElementById('printBtn').addEventListener('click', () => {
+      window.print();
+    });
+
+    // Helper: Collect current slip data from inputs
+    function getSlipData() {
+      const data = {};
+      inputs.forEach(input => {
+        const field = input.getAttribute('data-field');
+        data[field] = input.value;
+      });
+      return data;
+    }
+
+    // Native High-Resolution HTML5 Canvas Renderer (3x scale: 2160 x 1080)
+    // Guarantees 100% crisp borders, pipe characters, labels, and text without DOM parser dropouts
+    function renderSlipToCanvas(data) {
+      const scale = 3;
+      const logicalW = 720;
+      const logicalH = 360;
+      const pad = 8; // outer white margin around double border
+
+      const canvas = document.createElement('canvas');
+      canvas.width = (logicalW + pad * 2) * scale;
+      canvas.height = (logicalH + pad * 2) * scale;
+
+      const ctx = canvas.getContext('2d');
+      ctx.scale(scale, scale);
+
+      // Solid white background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, logicalW + pad * 2, logicalH + pad * 2);
+
+      // Double outer border frame
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.8;
+
+      // Outer rectangle
+      ctx.strokeRect(pad, pad, logicalW, logicalH);
+
+      // Inner rectangle (4px gap inside outer border)
+      const inset = 4;
+      const innerX = pad + inset;
+      const innerY = pad + inset;
+      const innerW = logicalW - inset * 2;
+      const innerH = logicalH - inset * 2;
+      ctx.strokeRect(innerX, innerY, innerW, innerH);
+
+      // Column coordinates
+      const leftX = innerX + 9;
+      const dividerX = innerX + Math.round(innerW * 0.508);
+      const rightTextX = dividerX + 9;
+
+      ctx.fillStyle = '#000000';
+      ctx.textBaseline = 'top';
+
+      const regularFont = '15.5px Arial, Helvetica, sans-serif';
+      const boldFont = 'bold 15.5px Arial, Helvetica, sans-serif';
+
+      // Helper to draw "PREFIX : VALUE" with optional bold prefix or bold value
+      function drawLabelValue(x, y, prefix, value, boldPrefix = false, boldValue = false) {
+        ctx.font = boldPrefix ? boldFont : regularFont;
+        ctx.fillText(prefix, x, y);
+        const prefixW = ctx.measureText(prefix).width;
+        ctx.font = boldValue ? boldFont : regularFont;
+        ctx.fillText(value || '', x + prefixW, y);
+        return prefixW + ctx.measureText(value || '').width;
+      }
+
+      // Helper to draw stacked vertical pipe '|' glyph matching the slip's center column
+      function drawPipe(y) {
+        ctx.save();
+        ctx.font = 'bold 19px "Courier New", Courier, monospace';
+        ctx.fillText('|', dividerX - 2, y - 2);
+        ctx.restore();
+      }
+
+      // ================= LEFT COLUMN =================
+      // Row 1: CN : 10600138019
+      drawLabelValue(leftX, innerY + 10, 'CN : ', data.cn, false, true);
+
+      // Shipper Block (after blank line gap)
+      const shipperStartY = innerY + 45;
+      const leftLineH = 21.5;
+
+      ctx.font = boldFont;
+      ctx.fillText('SHIPPER', leftX, shipperStartY);
+
+      drawLabelValue(leftX, shipperStartY + leftLineH, 'CUSTOMER : ', data.customer, false, false);
+
+      ctx.font = regularFont;
+      ctx.fillText(data.shipperName || '', leftX, shipperStartY + leftLineH * 2);
+      ctx.fillText(data.shipperAddress || '', leftX, shipperStartY + leftLineH * 3);
+
+      // Horizontal solid divider line stopping cleanly just before center pipe column
+      const hrY = shipperStartY + leftLineH * 4 + 14;
+      ctx.beginPath();
+      ctx.lineWidth = 1.8;
+      ctx.moveTo(innerX + 7, hrY);
+      ctx.lineTo(dividerX - 4, hrY);
+      ctx.stroke();
+
+      // Consignee Block
+      const consigneeStartY = hrY + 7;
+      ctx.font = boldFont;
+      ctx.fillText('CONSIGNEE', leftX, consigneeStartY);
+
+      ctx.font = regularFont;
+      ctx.fillText(data.consigneeDept || '', leftX, consigneeStartY + 21);
+
+      // Shortened 12px gap before address lines
+      const addrStartY = consigneeStartY + 21 + 21 + 12;
+      ctx.fillText(data.consigneeAddr1 || '', leftX, addrStartY);
+      ctx.fillText(data.consigneeAddr2 || '', leftX, addrStartY + 21);
+      ctx.fillText(data.consigneeAddr3 || '', leftX, addrStartY + 42);
+      drawLabelValue(leftX, addrStartY + 63, 'CITY : ', data.city, false, false);
+
+      // ================= RIGHT COLUMN & CENTER PIPE '|' =================
+      // Row 1: ORGN : JHG   DSTN : ISB
+      const r1Y = innerY + 8;
+      drawPipe(r1Y);
+      const orgnW = drawLabelValue(rightTextX, r1Y, 'ORGN : ', data.orgn, false, true);
+      drawLabelValue(rightTextX + orgnW + 18, r1Y, 'DSTN : ', data.dstn, false, true);
+
+      // Row 2: Blank pipe row
+      drawPipe(r1Y + 20);
+
+      // Rows 3 to 10: Shipment Details
+      const midStartY = r1Y + 39;
+      const rightLineH = 21.5;
+
+      const rightRows = [
+        { prefix: 'DATE : ', value: data.date, boldPrefix: false },
+        { prefix: 'WEIGHT : ', value: data.weight, boldPrefix: false },
+        { prefix: 'NO. OF PCS : ', value: data.pcs, boldPrefix: false },
+        { prefix: 'PRODUCT : ', value: data.product, boldPrefix: false },
+        { prefix: 'SERVICE : ', value: data.service, boldPrefix: false },
+        { prefix: 'CUST REF : ', value: data.custRef, boldPrefix: true },
+        { prefix: 'BOOKING STAFF : ', value: data.bookingStaff, boldPrefix: false },
+        { prefix: 'INS. AMOUNT : ', value: data.insAmount, boldPrefix: false }
+      ];
+
+      rightRows.forEach((row, idx) => {
+        const y = midStartY + idx * rightLineH;
+        drawPipe(y);
+        drawLabelValue(rightTextX, y, row.prefix, row.value, row.boldPrefix, false);
+      });
+
+      // Row 11: Blank pipe row above COD
+      const codBlankY = midStartY + rightRows.length * rightLineH;
+      drawPipe(codBlankY);
+
+      // Row 12: COD
+      const codY = codBlankY + 19;
+      drawPipe(codY);
+      drawLabelValue(rightTextX, codY, 'COD : ', data.cod, false, false);
+
+      // Row 13: Blank pipe row above SHS
+      const shsBlankY = codY + 20;
+      drawPipe(shsBlankY);
+
+      // Row 14: SHS
+      const shsY = shsBlankY + 19;
+      drawPipe(shsY);
+      drawLabelValue(rightTextX, shsY, 'SHS : ', data.shs, false, false);
+
+      return canvas;
+    }
+
+    // High-Resolution PNG Slip Download handler
+    document.getElementById('downloadPngBtn').addEventListener('click', () => {
+      const btn = document.getElementById('downloadPngBtn');
+      const originalHTML = btn.innerHTML;
+      btn.disabled = true;
+      btn.textContent = 'Generating PNG...';
+
+      if (document.activeElement) {
+        document.activeElement.blur();
+      }
+
+      try {
+        const slipData = getSlipData();
+        const safeCn = (slipData.cn || '').trim().replace(/[^a-zA-Z0-9_-]/g, '') || 'slip';
+
+        const canvas = renderSlipToCanvas(slipData);
+
+        const link = document.createElement('a');
+        link.download = `CN_${safeCn}_slip.png`;
+        link.href = canvas.toDataURL('image/png');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showToast(`Downloaded CN_${safeCn}_slip.png`);
+      } catch (err) {
+        console.error('PNG Export Error:', err);
+        showToast('PNG export failed. Please try Print / Save PDF.', true);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+      }
+    });
+  </script>
+</body>
+</html>
